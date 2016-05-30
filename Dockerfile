@@ -28,8 +28,6 @@ RUN  ls -al /tmp && mkdir -p /usr/share/maven \
      which \
   && yum clean all \
   && rm -rf /var/cache/yum \
-  && alternatives --set java /usr/lib/jvm/java-1.8.0-oracle-1.8.0.71-1jpp.1.el7.x86_64/jre/bin/java \
-  && alternatives --set javac /usr/lib/jvm/java-1.8.0-oracle-1.8.0.71-1jpp.1.el7.x86_64/bin/javac \
   && ln -s /usr/share/maven/apache-maven-3.3.9/bin/mvn /usr/bin/mvn \
   && git config --system http.sslverify false \
   && git config --system user.email "jenkins-build-job@ulx.hu" \
