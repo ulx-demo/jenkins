@@ -16,7 +16,7 @@ ADD apache-maven-3.3.9-bin.tar.gz /tmp/
 ADD plugins.tar /tmp/
 ADD configuration /opt/openshift/configuration/
 
-RUN  mkdir -p /usr/share/maven \
+RUN  ls -al /tmp && mkdir -p /usr/share/maven \
   && tar -zxvf /tmp/apache-maven-3.3.9-bin.tar.gz -C /usr/share/maven \
   && tar -xvf /tmp/plugins.tar -C /opt/openshift \
   && ln -sf /usr/share/zoneinfo/Europe/Budapest /etc/localtime \
