@@ -1,0 +1,342 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>PROJECT_NAME</name>
+          <description>Name of the Project</description>
+          <defaultValue>kitchensink</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GIT_URL</name>
+          <description>GIT Repository URL</description>
+          <defaultValue>https://github.com/ulx-demo/jboss-eap-quickstarts</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_SUBDIR</name>
+          <description>Subdirectory where &quot;Dockerfile.template&quot; is located under the source tree</description>
+          <defaultValue>openshift/docker</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(Default)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <javaposse.jobdsl.plugin.ExecuteDslScripts plugin="job-dsl@1.43">
+      <scriptText>def project = &quot;${PROJECT_NAME}&quot;
+def repoURL = &quot;${GIT_URL}&quot;
+def repo = project
+
+def openshiftURL = &apos;https://openshift.default.svc&apos;
+
+
+def pipelineParameters = {
+  { parameters -&gt;
+    stringParam(&apos;VERSION&apos;, &apos;1.0&apos;, &apos;Release version&apos;)
+    stringParam(&apos;DEV_PROJECT&apos;, &quot;${project}&quot;, &apos;OpenShift project for DEV&apos;)
+    stringParam(&apos;INT_TEST_PROJECT&apos;, &quot;${project}-int&quot;, &apos;OpenShift project for INT_TEST&apos;)
+    stringParam(&apos;COM_TEST_PROJECT&apos;, &quot;${project}-com&quot;, &apos;OpenShift project for COM_TEST&apos;)
+    stringParam(&apos;UAT_PROJECT&apos;, &quot;${project}-uat&quot;, &apos;OpenShift project for UAT&apos;)
+    stringParam(&apos;BUILD_CONFIG&apos;, &quot;${project}&quot;, &apos;Name of the OpenShift BuildConfig&apos;)
+    stringParam(&apos;IMAGE_STREAM&apos;, &quot;${project}&quot;, &apos;Name of the OpenShift ImageStream&apos;)
+    stringParam(&apos;DEPLOYMENT_CONFIG&apos;, &quot;${project}&quot;, &apos;Name of the Openshift DeploymentConfig&apos;)
+    stringParam(&apos;REPLICAS&apos;, &apos;2&apos;, &apos;Number of replicas for DeploymentConfig&apos;)
+    stringParam(&apos;SERVICE&apos;, &quot;${project}&quot;, &apos;Name of the OpenShift Service&apos;)
+  }
+}
+
+deliveryPipelineView(project.capitalize()) {
+  pipelineInstances(3)
+  showAggregatedPipeline()
+  enableManualTriggers()
+  allowPipelineStart()
+  allowRebuild()
+  pipelines {
+    component(project.capitalize(), &quot;${project}-maven-build&quot;)
+  }
+}
+
+mavenJob(&quot;${project}-maven-build&quot;) {
+
+  triggers {
+    scm(&apos;@midnight&apos;)
+  }
+
+  parameters pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Maven build&apos;)
+  
+  wrappers {
+    deliveryPipelineVersion(&apos;${VERSION}.${BUILD_NUMBER}&apos;, true)
+  }
+  
+  scm {
+    git {
+      remote {
+        name(repo)
+        url(repoURL)
+      }
+      branches(&apos;*/master&apos;)
+      localBranch(&apos;${PIPELINE_VERSION}&apos;)
+    }
+  }
+  
+  preBuildSteps {
+    maven {
+      goals(&apos;versions:set&apos;)
+      property(&apos;newVersion&apos;, &apos;$PIPELINE_VERSION&apos;)
+    }    
+  }
+  
+  goals(&apos;clean test&apos;)
+  
+  postBuildSteps(&apos;UNSTABLE&apos;) {    
+    maven {
+      goals(&apos;deploy -Dmaven.test.skip=true&apos;)
+    }
+    managedScript(&apos;prepare-release-branch&apos;) {
+      arguments(&quot;${DOCKER_SUBDIR}/Dockerfile.template&quot;, &quot;${DOCKER_SUBDIR}/Dockerfile&quot;)
+    }
+  }
+  
+  publishers {
+    sonar {      
+    }
+    
+    git {
+      pushOnlyIfSuccess()
+      branch(repo, &apos;$PIPELINE_VERSION&apos;)
+    }
+    
+    publishCloneWorkspace(&apos;**&apos;)
+    
+    downstreamParameterized {
+      trigger(&quot;${project}-docker-build&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }
+  
+}
+
+
+job(&quot;${project}-docker-build&quot;) {
+  
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Docker build&apos;)
+
+  steps {    
+    managedScript(&apos;openshift-tag-build&apos;) {
+      arguments(&apos;$BUILD_CONFIG&apos;, &apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    
+    managedScript(&apos;openshift-start-build&apos;) {
+      arguments(&apos;$BUILD_CONFIG&apos;, &apos;$DEV_PROJECT&apos;, &apos;--commit=$PIPELINE_VERSION&apos;)
+    }
+
+    managedScript(&apos;openshift-tag-build&apos;) {
+      arguments(&apos;$BUILD_CONFIG&apos;, &apos;$IMAGE_STREAM:latest&apos;, &apos;$DEV_PROJECT&apos;)
+    }  
+  }
+  
+  publishers {
+    downstreamParameterized {
+      trigger(&quot;${project}-dev-deploy&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }    
+
+}
+
+job(&quot;${project}-dev-deploy&quot;) {
+
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Deploy to OpenShift&apos;)
+
+  steps {
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-tag-image&apos;) {
+      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;$IMAGE_STREAM:$VERSION&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-verify-svc&apos;) {
+      arguments(&apos;$SERVICE&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+  }
+  
+  publishers {
+    downstreamParameterized {
+      trigger(&quot;${project}-int-deploy&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }    
+  
+  
+}
+
+job(&quot;${project}-int-deploy&quot;) {
+
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Deploy to OpenShift&apos;)
+
+  steps {
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$INT_TEST_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-tag-image&apos;) {
+      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;${IMAGE_STREAM}:${VERSION}-int&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$INT_TEST_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-verify-svc&apos;) {
+      arguments(&apos;$SERVICE&apos;, &apos;$INT_TEST_PROJECT&apos;)
+    }
+  }
+  
+  publishers {
+    downstreamParameterized {
+      trigger(&quot;${project}-int-test&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }    
+
+  
+}
+
+mavenJob(&quot;${project}-int-test&quot;) {
+  
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Run Integration Tests&apos;)
+
+  scm {
+    cloneWorkspace(&quot;${project}-maven-build&quot;)
+  }
+ 
+  goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=IntTestSimulation&apos;)
+  
+  publishers {
+    archiveGatling()
+    downstreamParameterized {
+      trigger(&quot;${project}-com-deploy&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }
+
+}
+
+job(&quot;${project}-com-deploy&quot;) {
+
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Com&apos;, &apos;Deploy to OpenShift&apos;)
+
+  steps {
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$COM_TEST_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-tag-image&apos;) {
+      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;${IMAGE_STREAM}:${VERSION}-com&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-scale-dc&apos;) {
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$COM_TEST_PROJECT&apos;)
+    }
+    managedScript(&apos;openshift-verify-svc&apos;) {
+      arguments(&apos;$SERVICE&apos;, &apos;$COM_TEST_PROJECT&apos;)
+    }
+  }
+  
+  publishers {
+    downstreamParameterized {
+      trigger(&quot;${project}-com-test&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }
+
+  
+}
+
+mavenJob(&quot;${project}-com-test&quot;) {
+  
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Com&apos;, &apos;Run Integration Tests&apos;)
+
+  scm {
+    cloneWorkspace(&quot;${project}-maven-build&quot;)
+  }
+ 
+  goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=ComTestSimulation&apos;)
+  
+  publishers {
+    archiveGatling()
+    downstreamParameterized {
+      trigger(&quot;${project}-uat-delivery&quot;) {
+        condition(&apos;UNSTABLE_OR_BETTER&apos;)
+        parameters {
+          currentBuild()
+        }
+      }
+    }
+  }
+
+}
+
+job(&quot;${project}-uat-delivery&quot;) {
+  
+  pipelineParameters()
+  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Mark for delivery&apos;)
+  
+  steps {
+    managedScript(&apos;openshift-tag-image&apos;) {
+      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;${IMAGE_STREAM}:${PIPELINE_VERSION}-uat&apos;, &apos;$DEV_PROJECT&apos;)
+    }
+  }
+  
+}</scriptText>
+      <usingScriptText>true</usingScriptText>
+      <ignoreExisting>false</ignoreExisting>
+      <removedJobAction>IGNORE</removedJobAction>
+      <removedViewAction>IGNORE</removedViewAction>
+      <lookupStrategy>JENKINS_ROOT</lookupStrategy>
+      <additionalClasspath></additionalClasspath>
+    </javaposse.jobdsl.plugin.ExecuteDslScripts>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

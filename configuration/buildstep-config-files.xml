@@ -1,0 +1,319 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<org.jenkinsci.plugins.managedscripts.ScriptBuildStepConfigProvider plugin="managed-scripts@1.2.1">
+  <configs>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455879012887</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455879012887</id>
+        <name>openshift-tag-build</name>
+        <comment>Change Output Tag in BuildConfig</comment>
+        <content>#!/bin/bash
+TOKEN=&quot;$(cat /run/secrets/kubernetes.io/serviceaccount/token)&quot;
+
+if [ -z &quot;$3&quot; ]; then 
+    NAMESPACE=&quot;&quot;
+else
+    NAMESPACE=&quot;-n $3&quot;
+fi
+
+PATCH=&quot;{\&quot;spec\&quot;:{\&quot;output\&quot;:{\&quot;to\&quot;:{\&quot;name\&quot;:\&quot;$2\&quot;}}}}&quot;
+
+echo &quot;Setting output ImageStreamTag of BuildConfig $1 to $2.&quot;
+oc --token=&quot;$TOKEN&quot; $NAMESPACE patch bc $1 -p &quot;$PATCH&quot;
+</content>
+        <providerId>org.jenkinsci.plugins.managedscripts.ScriptConfig</providerId>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the BuildConfig</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the Output Tag</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Project</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455711428380</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455711428380</id>
+        <name>prepare-release-branch</name>
+        <comment>Processes the Dockerfile from template and commits to the release branch.</comment>
+        <content>#!/bin/bash
+
+# PIPELINE_VERSION: git branch és verziószám
+# 
+TEMPLATE=&quot;$1&quot;
+OUTPUT=&quot;$2&quot;
+
+
+envsubst &lt; &quot;${TEMPLATE}&quot; &gt; &quot;${OUTPUT}&quot;
+git add $OUTPUT
+git commit -a -m &quot;Prepare branch for release ($PIPELINE_VERSION).&quot;</content>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Dockerfile template (relative to GIT root)</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Generated Dockerfile (relative to GIT root)</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455887471945</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455887471945</id>
+        <name>openshift-start-build</name>
+        <comment>Start a Build in OpenShift</comment>
+        <content>#!/bin/bash
+shopt -s expand_aliases
+TOKEN=&quot;$(cat /run/secrets/kubernetes.io/serviceaccount/token)&quot;
+
+if [ -z &quot;$2&quot; ]; then
+	PROJECT=&quot;&quot;
+else
+    PROJECT=&quot;-n $2&quot;
+fi
+
+alias oc=&quot;oc $PROJECT --token $TOKEN&quot;
+
+bc=$1
+
+echo &quot;Triggering new application build and deployment&quot;
+BUILD_ID=`oc start-build ${bc} ${3}`
+if [ $? -ne 0 ]; then
+  echo &quot;FAILED to start build.&quot;
+  exit 1
+fi
+
+# stream the logs for the build that just started
+rc=1
+count=0
+attempts=24
+echo &quot;Waiting for build to start&quot;
+set +e
+while [ $rc -ne 0 -a $count -lt $attempts ]; do
+	oc logs -f ${BUILD_ID}-build
+	rc=$?
+	count=$(($count+1))
+	echo &quot;Attempt $count/$attempts&quot;
+    sleep 10
+done
+set -e
+
+echo &quot;Checking build result status&quot;
+rc=1
+count=0
+attempts=24
+while [ $rc -ne 0 -a $count -lt $attempts ]; do
+	status=`oc get build ${BUILD_ID} --template &apos;{{.status.phase}}&apos;`
+	if [[ $status == &quot;Failed&quot; || $status == &quot;Error&quot; || $status == &quot;Canceled&quot; ]]; then
+   		echo &quot;Fail: Build $bc completed with unsuccessful status: ${status}&quot;
+   		exit 1
+	fi
+
+	if [ $status == &quot;Complete&quot; ]; then
+  		echo &quot;Build $bc completed successfully, will check availibility next&quot;
+   		rc=0
+	else 
+   		count=$(($count+1))
+   		echo &quot;Attempt $count/$attempts&quot;
+   		sleep 10
+	fi
+done
+
+if [ $rc -ne 0 ]; then
+   	echo &quot;Fail: Build $bc did not complete in a reasonable period of time&quot;
+   	exit 1
+fi
+</content>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the BuildConfig</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Project</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Other arguments for the start-build command</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455805166193</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455805166193</id>
+        <name>openshift-tag-image</name>
+        <comment>Tag an Image in OpenShift</comment>
+        <content>#!/bin/bash
+TOKEN=&quot;$(cat /run/secrets/kubernetes.io/serviceaccount/token)&quot;
+echo &quot;OpenShift: Setting ImageStream tag $2 on $1.&quot;
+
+if [ -z &quot;$3&quot; ]; then 
+    oc --token=$TOKEN tag $1 $2 --alias
+else
+	oc --token=$TOKEN -n $3 tag $1 $2 --alias
+fi
+sleep 10
+
+</content>
+        <providerId>org.jenkinsci.plugins.managedscripts.ScriptConfig</providerId>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the source Image</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the destination Image</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Project</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455973703258</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455973703258</id>
+        <name>openshift-verify-svc</name>
+        <comment>Verify that Service is available in OpenShift</comment>
+        <content>#!/bin/bash
+shopt -s expand_aliases
+TOKEN=&quot;$(cat /run/secrets/kubernetes.io/serviceaccount/token)&quot;
+
+if [ -z &quot;$2&quot; ]; then
+	PROJECT=&quot;&quot;
+else
+    PROJECT=&quot;-n $2&quot;
+fi
+
+svc=&quot;$1&quot;
+
+alias oc=&quot;oc $PROJECT --token $TOKEN&quot;
+
+echo &quot;OpenShift: checking if service $svc is available.&quot;
+
+available=&quot;no&quot;
+attempts=24
+count=0
+
+while [ &quot;$available&quot; != &quot;yes&quot; -a $count -lt $attempts ]; do
+  svc_ip=$(oc get svc $svc --template &apos;{{.spec.clusterIP}}&apos;)
+  svc_port=$(oc get svc $svc --template &apos;{{with index .spec.ports 0}}{{.port}}{{end}}&apos;)
+  if [ echo &gt; /dev/tcp/$svc_ip/$svc_port ]; then 
+  	available=&quot;yes&quot;
+  else
+    sleep 10
+  	count=$(($count+1))
+    echo &quot;Attempt $count/$attempts&quot;    
+  fi
+done
+
+if [ &quot;$available&quot; == &quot;yes&quot; ]; then
+  echo &quot;OpenShift: service $svc is reachable.&quot;
+  exit 0
+else
+  echo &quot;OpenShift: FAILED to connect to service $svc at ${svc_ip}:${svc_port}&quot;
+  exit 1
+fi
+</content>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the Service</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Project</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+    <entry>
+      <string>org.jenkinsci.plugins.managedscripts.ScriptConfig1455971981554</string>
+      <org.jenkinsci.plugins.managedscripts.ScriptConfig>
+        <id>org.jenkinsci.plugins.managedscripts.ScriptConfig1455971981554</id>
+        <name>openshift-scale-dc</name>
+        <comment>Scale OpenShift Deployment to a given number of replicas</comment>
+        <content>#!/bin/bash
+shopt -s expand_aliases
+TOKEN=&quot;$(cat /run/secrets/kubernetes.io/serviceaccount/token)&quot;
+
+if [ -z &quot;$3&quot; ]; then
+	PROJECT=&quot;&quot;
+else
+    PROJECT=&quot;-n $3&quot;
+fi
+
+dc=&quot;$1&quot;
+replicas=&quot;$2&quot;
+
+alias oc=&quot;oc $PROJECT --token $TOKEN&quot;
+
+echo &quot;OpenShift: scaling DeploymentConfig $dc to $replicas replicas.&quot;
+oc scale dc $dc --replicas=$replicas
+
+if [ $? -ne 0 ]; then
+  echo &quot;FAILED to Scale DeploymentConfig $dc&quot;
+  exit 1
+fi
+
+scaled=&quot;no&quot;
+attempts=30
+count=0
+
+# Validating new replica count will fail unless the latest deployment was successful!
+
+echo &quot;OpenShift: validating new replica count.&quot;
+while [ &quot;$scaled&quot; != &quot;yes&quot; -a $count -lt $attempts ]; do
+
+  rc=&quot;${dc}-$(oc get dc $dc --template {{.status.latestVersion}})&quot;
+  
+  if [ &quot;$rc&quot; == &quot;kitchensink-&lt;no value&gt;&quot; ]; then
+    if [ $replicas -eq 0 ]; then
+      echo &quot;DC $dc was never deployed, confirming 0 replicas.&quot;
+      exit 0
+    else
+      echo &quot;FAILURE: DC $dc was never deployed!&quot;
+      exit 1
+    fi
+  fi
+  
+  scale=$(oc get rc $rc --template {{.status.replicas}})
+  
+  
+  
+  if [ $scale -eq $replicas ]; then
+  	scaled=&quot;yes&quot;
+  else
+    echo &quot;Attempt $count/$attempts&quot;
+    sleep 10
+  	count=$(($count+1))
+  fi
+done
+
+if [ &quot;$scaled&quot; == &quot;yes&quot; ]; then
+  echo &quot;OpenShift: $dc successfully scaled to $replicas replicas.&quot;
+  exit 0
+else
+  echo &quot;OpenShift: FAILED scaling $dc to $replicas replicas.&quot;
+  exit 1
+fi
+</content>
+        <args>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Name of the DeploymentConfig</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Desired number of replicas</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+          <org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+            <name>Project</name>
+          </org.jenkinsci.plugins.managedscripts.ScriptConfig_-Arg>
+        </args>
+      </org.jenkinsci.plugins.managedscripts.ScriptConfig>
+    </entry>
+  </configs>
+</org.jenkinsci.plugins.managedscripts.ScriptBuildStepConfigProvider>
