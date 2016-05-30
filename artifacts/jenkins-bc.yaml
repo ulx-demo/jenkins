@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: BuildConfig
+metadata:
+  name: jenkins
+  labels:
+    name: jenkins
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/ulx-demo/jenkins
+    sourceSecret:
+      name: git-secret
+    contextDir: jenkins
+  strategy:
+    type: Docker
+    dockerStrategy:
+      forcePull: true
+      from:
+        kind: ImageStreamTag
+        name: jenkins:latest
+        namespace: openshift
+  output:
+    to:
+      kind: ImageStreamTag
+      name: jenkins:latest
+  triggers:
+  - type: ImageChange
