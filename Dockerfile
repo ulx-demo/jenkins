@@ -39,7 +39,5 @@ RUN  ls -al /tmp && mkdir -p /usr/share/maven \
   && rm -rf "/opt/openshift/configuration/jobs/OpenShift Sample" \
   && rm -rf /tmp/*
 
-USER 185
-
 CMD ["/usr/libexec/s2i/run"]
 
