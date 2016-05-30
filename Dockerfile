@@ -8,7 +8,7 @@ ENV JENKINS_VERSION=1.625 \
     JENKINS_HOME=/var/lib/jenkins \
     MAVEN_HOME=/usr/share/maven \
     JAVA_HOME=/etc/alternatives/jre \
-    JAVA_OPTS=-Duser.home=$HOME \
+    JAVA_OPTS=-Duser.home=$HOME
 
 USER root
 

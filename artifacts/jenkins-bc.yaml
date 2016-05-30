@@ -11,7 +11,6 @@ spec:
       uri: https://github.com/ulx-demo/jenkins
     sourceSecret:
       name: git-secret
-    contextDir: jenkins
   strategy:
     type: Docker
     dockerStrategy:
