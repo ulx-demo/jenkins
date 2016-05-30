@@ -16,11 +16,6 @@
           <description>GIT Repository URL</description>
           <defaultValue>https://github.com/ulx-demo/jboss-eap-quickstarts</defaultValue>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>DOCKER_SUBDIR</name>
-          <description>Subdirectory where &quot;Dockerfile.template&quot; is located under the source tree</description>
-          <defaultValue>openshift/docker</defaultValue>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -29,7 +24,7 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <jdk>(Default)</jdk>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
@@ -46,8 +41,8 @@ def pipelineParameters = {
     stringParam(&apos;VERSION&apos;, &apos;1.0&apos;, &apos;Release version&apos;)
     stringParam(&apos;DEV_PROJECT&apos;, &quot;${project}&quot;, &apos;OpenShift project for DEV&apos;)
     stringParam(&apos;INT_TEST_PROJECT&apos;, &quot;${project}-int&quot;, &apos;OpenShift project for INT_TEST&apos;)
-    stringParam(&apos;COM_TEST_PROJECT&apos;, &quot;${project}-com&quot;, &apos;OpenShift project for COM_TEST&apos;)
     stringParam(&apos;UAT_PROJECT&apos;, &quot;${project}-uat&quot;, &apos;OpenShift project for UAT&apos;)
+    stringParam(&apos;PROD_PROJECT&apos;, &quot;${project}-prod&quot;, &apos;OpenShift project for PROD&apos;)
     stringParam(&apos;BUILD_CONFIG&apos;, &quot;${project}&quot;, &apos;Name of the OpenShift BuildConfig&apos;)
     stringParam(&apos;IMAGE_STREAM&apos;, &quot;${project}&quot;, &apos;Name of the OpenShift ImageStream&apos;)
     stringParam(&apos;DEPLOYMENT_CONFIG&apos;, &quot;${project}&quot;, &apos;Name of the Openshift DeploymentConfig&apos;)
@@ -57,87 +52,25 @@ def pipelineParameters = {
 }
 
 deliveryPipelineView(project.capitalize()) {
-  pipelineInstances(3)
+  pipelineInstances(4)
   showAggregatedPipeline()
   enableManualTriggers()
   allowPipelineStart()
   allowRebuild()
   pipelines {
-    component(project.capitalize(), &quot;${project}-maven-build&quot;)
+    component(project.capitalize(), &quot;${project}-build&quot;)
   }
 }
 
-mavenJob(&quot;${project}-maven-build&quot;) {
-
-  triggers {
-    scm(&apos;@midnight&apos;)
-  }
-
-  parameters pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Maven build&apos;)
+job(&quot;${project}-build&quot;) {
   
+  parameters pipelineParameters()
+  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Build Image&apos;)
+
   wrappers {
     deliveryPipelineVersion(&apos;${VERSION}.${BUILD_NUMBER}&apos;, true)
   }
   
-  scm {
-    git {
-      remote {
-        name(repo)
-        url(repoURL)
-      }
-      branches(&apos;*/master&apos;)
-      localBranch(&apos;${PIPELINE_VERSION}&apos;)
-    }
-  }
-  
-  preBuildSteps {
-    maven {
-      goals(&apos;versions:set&apos;)
-      property(&apos;newVersion&apos;, &apos;$PIPELINE_VERSION&apos;)
-    }    
-  }
-  
-  goals(&apos;clean test&apos;)
-  
-  postBuildSteps(&apos;UNSTABLE&apos;) {    
-    maven {
-      goals(&apos;deploy -Dmaven.test.skip=true&apos;)
-    }
-    managedScript(&apos;prepare-release-branch&apos;) {
-      arguments(&quot;${DOCKER_SUBDIR}/Dockerfile.template&quot;, &quot;${DOCKER_SUBDIR}/Dockerfile&quot;)
-    }
-  }
-  
-  publishers {
-    sonar {      
-    }
-    
-    git {
-      pushOnlyIfSuccess()
-      branch(repo, &apos;$PIPELINE_VERSION&apos;)
-    }
-    
-    publishCloneWorkspace(&apos;**&apos;)
-    
-    downstreamParameterized {
-      trigger(&quot;${project}-docker-build&quot;) {
-        condition(&apos;UNSTABLE_OR_BETTER&apos;)
-        parameters {
-          currentBuild()
-        }
-      }
-    }
-  }
-  
-}
-
-
-job(&quot;${project}-docker-build&quot;) {
-  
-  pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Docker build&apos;)
-
   steps {    
     managedScript(&apos;openshift-tag-build&apos;) {
       arguments(&apos;$BUILD_CONFIG&apos;, &apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;$DEV_PROJECT&apos;)
@@ -168,7 +101,7 @@ job(&quot;${project}-docker-build&quot;) {
 job(&quot;${project}-dev-deploy&quot;) {
 
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Deploy to OpenShift&apos;)
+  deliveryPipelineConfiguration(&apos;Dev&apos;, &apos;Deploy on OpenShift&apos;)
 
   steps {
     managedScript(&apos;openshift-scale-dc&apos;) {
@@ -202,7 +135,7 @@ job(&quot;${project}-dev-deploy&quot;) {
 job(&quot;${project}-int-deploy&quot;) {
 
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Deploy to OpenShift&apos;)
+  deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Deploy on OpenShift&apos;)
 
   steps {
     managedScript(&apos;openshift-scale-dc&apos;) {
@@ -239,7 +172,13 @@ mavenJob(&quot;${project}-int-test&quot;) {
   deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Run Integration Tests&apos;)
 
   scm {
-    cloneWorkspace(&quot;${project}-maven-build&quot;)
+    git {
+      remote {
+        name(repo)
+        url(repoURL)
+      }
+      branches(&apos;*/master&apos;)
+    }
   }
  
   goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=IntTestSimulation&apos;)
@@ -247,7 +186,7 @@ mavenJob(&quot;${project}-int-test&quot;) {
   publishers {
     archiveGatling()
     downstreamParameterized {
-      trigger(&quot;${project}-com-deploy&quot;) {
+      trigger(&quot;${project}-uat-deploy&quot;) {
         condition(&apos;UNSTABLE_OR_BETTER&apos;)
         parameters {
           currentBuild()
@@ -258,10 +197,10 @@ mavenJob(&quot;${project}-int-test&quot;) {
 
 }
 
-job(&quot;${project}-com-deploy&quot;) {
+job(&quot;${project}-uat-deploy&quot;) {
 
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Com&apos;, &apos;Deploy to OpenShift&apos;)
+  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Deploy on OpenShift&apos;)
 
   steps {
     managedScript(&apos;openshift-scale-dc&apos;) {
@@ -280,7 +219,7 @@ job(&quot;${project}-com-deploy&quot;) {
   
   publishers {
     downstreamParameterized {
-      trigger(&quot;${project}-com-test&quot;) {
+      trigger(&quot;${project}-uat-test&quot;) {
         condition(&apos;UNSTABLE_OR_BETTER&apos;)
         parameters {
           currentBuild()
@@ -292,21 +231,21 @@ job(&quot;${project}-com-deploy&quot;) {
   
 }
 
-mavenJob(&quot;${project}-com-test&quot;) {
+mavenJob(&quot;${project}-uat-test&quot;) {
   
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;Com&apos;, &apos;Run Integration Tests&apos;)
+  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Run Tests&apos;)
 
   scm {
     cloneWorkspace(&quot;${project}-maven-build&quot;)
   }
  
-  goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=ComTestSimulation&apos;)
+  goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=UatSimulation&apos;)
   
   publishers {
     archiveGatling()
     downstreamParameterized {
-      trigger(&quot;${project}-uat-delivery&quot;) {
+      trigger(&quot;${project}-prod-deploy&quot;) {
         condition(&apos;UNSTABLE_OR_BETTER&apos;)
         parameters {
           currentBuild()
@@ -317,10 +256,10 @@ mavenJob(&quot;${project}-com-test&quot;) {
 
 }
 
-job(&quot;${project}-uat-delivery&quot;) {
+job(&quot;${project}-prod-deploy&quot;) {
   
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Mark for delivery&apos;)
+  deliveryPipelineConfiguration(&apos;Prod&apos;, &apos;Deploy on OpenShift&apos;)
   
   steps {
     managedScript(&apos;openshift-tag-image&apos;) {
