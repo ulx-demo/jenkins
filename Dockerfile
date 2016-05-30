@@ -13,7 +13,7 @@ ENV JENKINS_VERSION=1.625 \
 USER root
 
 ADD apache-maven-3.3.9-bin.tar.gz /tmp/
-ADD jenkins/plugins.tar /tmp/
+ADD plugins.tar /tmp/
 ADD configuration /opt/openshift/configuration/
 
 RUN  mkdir -p /usr/share/maven \
