@@ -171,13 +171,14 @@ mavenJob(&quot;${project}-int-test&quot;) {
   pipelineParameters()
   deliveryPipelineConfiguration(&apos;Int&apos;, &apos;Run Integration Tests&apos;)
 
+  jdk(&apos;java-1.8.0-oracle&apos;)
+  
   scm {
     git {
       remote {
         name(repo)
         url(repoURL)
       }
-      branches(&apos;*/master&apos;)
     }
   }
  
@@ -236,10 +237,17 @@ mavenJob(&quot;${project}-uat-test&quot;) {
   pipelineParameters()
   deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Run Tests&apos;)
 
+  jdk(&apos;java-1.8.0-oracle&apos;)
+
   scm {
-    cloneWorkspace(&quot;${project}-maven-build&quot;)
+    git {
+      remote {
+        name(repo)
+        url(repoURL)
+      }
+    }
   }
- 
+  
   goals(&apos;test -Pgatling-openshift -Dgatling.simulationClass=UatSimulation&apos;)
   
   publishers {
