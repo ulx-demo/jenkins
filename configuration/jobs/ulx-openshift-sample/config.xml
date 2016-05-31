@@ -205,16 +205,16 @@ job(&quot;${project}-uat-deploy&quot;) {
 
   steps {
     managedScript(&apos;openshift-scale-dc&apos;) {
-      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$COM_TEST_PROJECT&apos;)
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$UAT_PROJECT&apos;)
     }
     managedScript(&apos;openshift-tag-image&apos;) {
       arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;${IMAGE_STREAM}:${VERSION}-com&apos;, &apos;$DEV_PROJECT&apos;)
     }
     managedScript(&apos;openshift-scale-dc&apos;) {
-      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$COM_TEST_PROJECT&apos;)
+      arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$UAT_PROJECT&apos;)
     }
     managedScript(&apos;openshift-verify-svc&apos;) {
-      arguments(&apos;$SERVICE&apos;, &apos;$COM_TEST_PROJECT&apos;)
+      arguments(&apos;$SERVICE&apos;, &apos;$UAT_PROJECT&apos;)
     }
   }
   
@@ -235,7 +235,7 @@ job(&quot;${project}-uat-deploy&quot;) {
 mavenJob(&quot;${project}-uat-test&quot;) {
   
   pipelineParameters()
-  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Run Tests&apos;)
+  deliveryPipelineConfiguration(&apos;UAT&apos;, &apos;Run Integration Tests&apos;)
 
   jdk(&apos;java-1.8.0-oracle&apos;)
 

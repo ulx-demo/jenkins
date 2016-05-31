@@ -65,6 +65,7 @@ if [ ! -e ${JENKINS_HOME}/configured ]; then
   echo "Copying Jenkins configuration to ${JENKINS_HOME} ..."
   cp -r /opt/openshift/configuration/* ${JENKINS_HOME}
   cp -r /opt/openshift/configuration/.kube ${JENKINS_HOME}
+  cp -r /opt/openshift/configuration/.m2 ${JENKINS_HOME}
   rm -rf /opt/openshift/configuration/*
 
   if [ "$(ls -A /opt/openshift/plugins 2>/dev/null)" ]; then
