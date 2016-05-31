@@ -14,7 +14,7 @@
         <hudson.model.StringParameterDefinition>
           <name>GIT_URL</name>
           <description>GIT Repository URL</description>
-          <defaultValue>https://github.com/ulx-demo/jboss-eap-quickstarts</defaultValue>
+          <defaultValue>https://github.com/ulx-demo/kitchensink</defaultValue>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
