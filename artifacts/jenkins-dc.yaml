@@ -25,6 +25,7 @@ spec:
       restartPolicy: Always
       securityContext: {}
       terminationGracePeriodSeconds: 30
+      serviceAccount: jenkins
   triggers:
   - type: ConfigChange
   - type: ImageChange

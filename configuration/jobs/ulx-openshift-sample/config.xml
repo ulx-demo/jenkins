@@ -39,7 +39,7 @@ def openshiftURL = &apos;https://openshift.default.svc&apos;
 def pipelineParameters = {
   { parameters -&gt;
     stringParam(&apos;VERSION&apos;, &apos;1.0&apos;, &apos;Release version&apos;)
-    stringParam(&apos;DEV_PROJECT&apos;, &quot;${project}&quot;, &apos;OpenShift project for DEV&apos;)
+    stringParam(&apos;DEV_PROJECT&apos;, &quot;${project}-dev&quot;, &apos;OpenShift project for DEV&apos;)
     stringParam(&apos;INT_TEST_PROJECT&apos;, &quot;${project}-int&quot;, &apos;OpenShift project for INT_TEST&apos;)
     stringParam(&apos;UAT_PROJECT&apos;, &quot;${project}-uat&quot;, &apos;OpenShift project for UAT&apos;)
     stringParam(&apos;PROD_PROJECT&apos;, &quot;${project}-prod&quot;, &apos;OpenShift project for PROD&apos;)
@@ -77,7 +77,7 @@ job(&quot;${project}-build&quot;) {
     }
     
     managedScript(&apos;openshift-start-build&apos;) {
-      arguments(&apos;$BUILD_CONFIG&apos;, &apos;$DEV_PROJECT&apos;, &apos;--commit=$PIPELINE_VERSION&apos;)
+      arguments(&apos;$BUILD_CONFIG&apos;, &apos;$DEV_PROJECT&apos;)
     }
 
     managedScript(&apos;openshift-tag-build&apos;) {
@@ -108,7 +108,7 @@ job(&quot;${project}-dev-deploy&quot;) {
       arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;0&apos;, &apos;$DEV_PROJECT&apos;)
     }
     managedScript(&apos;openshift-tag-image&apos;) {
-      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;$IMAGE_STREAM:$VERSION&apos;, &apos;$DEV_PROJECT&apos;)
+      arguments(&apos;$IMAGE_STREAM:$PIPELINE_VERSION&apos;, &apos;$IMAGE_STREAM:$VERSION-dev&apos;, &apos;$DEV_PROJECT&apos;)
     }
     managedScript(&apos;openshift-scale-dc&apos;) {
       arguments(&apos;$DEPLOYMENT_CONFIG&apos;, &apos;$REPLICAS&apos;, &apos;$DEV_PROJECT&apos;)
