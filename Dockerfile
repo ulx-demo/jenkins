@@ -37,6 +37,7 @@ RUN  ls -al /tmp && mkdir -p /usr/share/maven \
   && chmod -R g+rw /opt/openshift \
   && chown -R 185:root /opt/openshift/plugins \
   && chown -R 185:185 ${JENKINS_HOME} \
+  && chmod +x /usr/libexec/s2i/run \
   && rm -f /opt/openshift/plugins/openshift-pipeline.jpi \
   && rm -rf "/opt/openshift/configuration/jobs/OpenShift Sample" \
   && rm -rf /tmp/*
