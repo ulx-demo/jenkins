@@ -60,10 +60,10 @@ mkdir /tmp/war
 unzip -q /usr/lib/jenkins/jenkins.war -d /tmp/war
 new_password_hash=`obfuscate_password ${JENKINS_PASSWORD:-password}`
 
+cp -r /opt/openshift/configuration/.m2 /root
 if [ ! -e ${JENKINS_HOME}/configured ]; then
   echo "Copying Jenkins configuration to ${JENKINS_HOME} ..."
   cp -r /opt/openshift/configuration/* ${JENKINS_HOME}
-  cp -r /opt/openshift/configuration/.m2 /root
   cp -r /opt/openshift/configuration/.kube ${JENKINS_HOME}
   rm -rf /opt/openshift/configuration/*
 
