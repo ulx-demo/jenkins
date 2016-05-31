@@ -54,7 +54,7 @@ fi
 # passwd.template.
 # If you adding more layers to this Docker image and the layer you adding add
 # more system users, make sure you update the passwd.template.
-generate_passwd_file `id -u` `id -g`
+#generate_passwd_file `id -u` `id -g`
 
 mkdir /tmp/war
 unzip -q /usr/lib/jenkins/jenkins.war -d /tmp/war
