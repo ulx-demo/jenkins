@@ -15,7 +15,6 @@ USER root
 COPY apache-maven-3.3.9-bin.tar.gz /tmp/
 COPY plugins.tar /tmp/
 ADD configuration /opt/openshift/configuration/
-ADD .kube /root/.kube/
 ADD run /usr/libexec/s2i/run
 
 RUN  ls -al /tmp && mkdir -p /usr/share/maven \
